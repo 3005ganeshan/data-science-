@@ -1,0 +1,85 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <Keypad.h>
+
+LiquidCrystal_I2C lcd(0x27, 16, 2); // 0x27 is common I2C address
+
+const int ldrPin = A0;
+const int buzzerPin = 10;
+int threshold = 500;
+
+const byte ROWS = 4;
+const byte COLS = 4;
+char keys[ROWS][COLS] = {
+  {'1','2','3','A'},
+  {'4','5','6','B'},
+  {'7','8','9','C'},
+  {'*','0','#','D'}
+};
+
+byte rowPins[ROWS] = {2, 3, 4, 5};
+byte colPins[COLS] = {6, 7, 8, 9};
+
+Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
+
+String password = "1234";
+String inputPassword = "";
+bool disarmed = false;
+unsigned long disarmTime = 0;
+unsigned long disarmDuration = 10000; // 10 seconds
+
+void setup() {
+  pinMode(buzzerPin, OUTPUT);
+  digitalWrite(buzzerPin, LOW);
+  lcd.begin();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("System Armed");
+  Serial.begin(9600);
+}
+
+void loop() {
+  char key = keypad.getKey();
+
+  if (key) {
+    if (key == '#') {
+      if (inputPassword == password) {
+        disarmed = true;
+        disarmTime = millis();
+        lcd.clear();
+        lcd.print("Access Granted");
+      } else {
+        lcd.clear();
+        lcd.print("Wrong Password");
+      }
+      inputPassword = "";
+    } else if (key == '*') {
+      inputPassword = "";
+      lcd.clear();
+      lcd.print("Cleared");
+    } else {
+      inputPassword += key;
+      lcd.setCursor(0, 1);
+      lcd.print(inputPassword);
+    }
+  }
+
+  if (disarmed && (millis() - disarmTime > disarmDuration)) {
+    disarmed = false;
+    lcd.clear();
+    lcd.print("System Armed");
+  }
+
+  int ldrValue = analogRead(ldrPin);
+  Serial.println(ldrValue);
+
+  if (!disarmed && ldrValue < threshold) {
+    digitalWrite(buzzerPin, HIGH);
+    lcd.setCursor(0, 1);
+    lcd.print("INTRUSION!");
+  } else {
+    digitalWrite(buzzerPin, LOW);
+  }
+
+  delay(100);
+}
